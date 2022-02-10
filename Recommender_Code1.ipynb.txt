@@ -1,0 +1,1097 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "ad72abc6-6c95-45b2-aacc-42fbb85b8507",
+    "_uuid": "4755c4915c1449fc9d5be0e7d3cba71a3bbcce09"
+   },
+   "source": [
+    "# IST-718 Final Project\n",
+    "## Team: Devan Grey, Daniel Piston, Keeley Ables \n",
+    "\n",
+    "Code edited from the Netflix Kaggle notebook. Optimized loading and solved preprocessing challenges outlined by original author below. Sections no longer needed were deleted or commented out. Sections not commented out were used for the project. The cleaning code is completely original. The model code was sourced from the Kaggle notebook.\n",
+    "\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "e7fd6bbb-9fb6-455f-8f14-6fb25d55c866",
+    "_uuid": "8482ce5398e66af9faa64f603c4ebd2b5324ad33"
+   },
+   "source": [
+    "## Table of Content:\n",
+    "\n",
+    "* Objective\n",
+    "\n",
+    "* Data manipulation\n",
+    "    -  Data loading\n",
+    "    -  Data viewing\n",
+    "    -  Data cleaning\n",
+    "    -  Data slicing\n",
+    "    -  Data mapping\n",
+    "    \n",
+    "* Recommendation models\n",
+    "    -  Recommend with Collaborative Filtering (*Edit on 2017/11/07*)\n",
+    "    -  Recommend with Pearsons' R correlation"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "68066366-4219-4779-a159-d503bdedbfdd",
+    "_uuid": "689e0500abe3bd15f72c1cb3010c538c90631b50"
+   },
+   "source": [
+    "# Objective\n",
+    "<br>\n",
+    "Learn from data and recommend best TV shows to users, based on self & others behaviour\n",
+    "<br>"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "fbfaefbf-fda2-46ce-9e22-59b2c8d17fa2",
+    "_uuid": "8656955e16b88d57f19a3789c90069059ba884b9"
+   },
+   "source": [
+    "# Data manipulation"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "5a824059-8c9b-4418-9a24-f833943d49cb",
+    "_uuid": "2101d86c2cf3f7a61475ea82aaa3c5dd068cf187"
+   },
+   "source": [
+    "## Data loading"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "4092e050-1938-4283-9b18-396c60e94ee1",
+    "_uuid": "d0978db1b40af98cf11b5b185ef264a9891d183d"
+   },
+   "source": [
+    "Each data file (there are 4 of them) contains below columns:\n",
+    "\n",
+    "* Movie ID (as first line of each new movie record / file)\n",
+    "* Customer ID\n",
+    "* Rating (1 to 5)\n",
+    "* Date they gave the ratings\n",
+    "\n",
+    "There is another file contains the mapping of Movie ID to the movie background like name, year of release, etc"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "637b34e2-b123-4b2d-8e70-97631b0321f9",
+    "_uuid": "1f60257741c703435318df7e05e2a46c6e11af63"
+   },
+   "source": [
+    "Let's import the library we needed before we get started:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "_cell_guid": "046298b9-7ef7-4e68-aef2-a1fe316be5a0",
+    "_uuid": "3bc39967a41f9ec3989f971c49916b822b0806b7",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import math\n",
+    "import re\n",
+    "from scipy.sparse import csr_matrix\n",
+    "import matplotlib.pyplot as plt\n",
+    "import seaborn as sns\n",
+    "from surprise import Reader, Dataset, SVD\n",
+    "from surprise.model_selection import cross_validate\n",
+    "import pickle\n",
+    "sns.set_style(\"darkgrid\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "be4477f1-7a11-48f4-8147-262a6198609f",
+    "_uuid": "665b9a4bceca7bb318e39f1a5825170b18c6cc63"
+   },
+   "source": [
+    "Following code imports the oringal files, combines the files and outputs a single pickle file"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {
+    "_cell_guid": "0343ba37-0654-469c-98e5-812ecbaca528",
+    "_uuid": "2a5476e11ee4539c129f2da35fccdacf2c296765",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "#Skip date\n",
+    "df1 = pd.read_csv('../input/combined_data_1.txt', header = None, names = ['Cust_Id', 'Rating'], usecols = [0,1])\n",
+    "df1 = pd.read_csv('combined_data_1.txt', header = None, names = ['Cust_Id', 'Rating'], usecols = [0,1])\n",
+    "\n",
+    "df1['Rating'] = df1['Rating'].astype(float)\n",
+    "\n",
+    "print('Dataset 1 shape: {}'.format(df1.shape))\n",
+    "print('-Dataset examples-')\n",
+    "print(df1.iloc[::5000000, :])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "b5d0ced5-5376-4ff5-86f9-e642a7adbd92",
+    "_uuid": "3509640b273342e38c2635d1bb003e0d33de9e8c"
+   },
+   "source": [
+    "Import all files"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {
+    "_cell_guid": "4a093a49-8a80-4afd-bc13-17b84b284142",
+    "_uuid": "a6ca9915b92abd2681ae9a355d446e73b6fbe795",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "df2 = pd.read_csv('combined_data_2.txt', header = None, names = ['Cust_Id', 'Rating'], usecols = [0,1])\n",
+    "df3 = pd.read_csv('combined_data_3.txt', header = None, names = ['Cust_Id', 'Rating'], usecols = [0,1])\n",
+    "df4 = pd.read_csv('combined_data_4.txt', header = None, names = ['Cust_Id', 'Rating'], usecols = [0,1])#\n",
+    "\n",
+    "\n",
+    "df2['Rating'] = df2['Rating'].astype(float)\n",
+    "df3['Rating'] = df3['Rating'].astype(float)\n",
+    "df4['Rating'] = df4['Rating'].astype(float)\n",
+    "\n",
+    "print('Dataset 2 shape: {}'.format(df2.shape))\n",
+    "print('Dataset 3 shape: {}'.format(df3.shape))\n",
+    "print('Dataset 4 shape: {}'.format(df4.shape))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "11ca529c-e11c-4ec1-b9e9-d6c6c45163de",
+    "_uuid": "ebf5b154314c1268b4fffdf0449172b71e393c4f"
+   },
+   "source": [
+    "Combine datasets:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {
+    "_cell_guid": "ded88177-b586-48f2-bf3d-e1a892aca10e",
+    "_uuid": "4ea5a28d0108d2b272f1d30cf749080c4e94e66d",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "# load less data for speed\n",
+    "\n",
+    "df = df1\n",
+    "df = df1.append(df2)\n",
+    "df = df.append(df3)\n",
+    "df = df.append(df4)\n",
+    "\n",
+    "#df.index = np.arange(0,len(df))\n",
+    "#print('Full dataset shape: {}'.format(df.shape))\n",
+    "#print('-Dataset examples-')\n",
+    "#print(df.iloc[::5000000, :])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## DP: Save combined dataset as pickle (.pkl) for fast efficient storage of combined datset and easy loading. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Save combined df to pkl file for compact storage and removing segmented df from kernal memory\n",
+    "\n",
+    "df.to_pickle(\"df.pkl\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Load combined df as pickle, do this after restarting kernal and don't run first 4 dataset loads (comment them out)\n",
+    "\n",
+    "df = pd.read_pickle('df.pkl')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## DP: Updated Data Cleaning\n",
+    "\n",
+    "Replaced kernal crashing numpy section with code below for efficient preprocessing"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "/var/folders/t3/yf_l77bx74s62ggfvz2xtht40000gp/T/ipykernel_63050/2836224052.py:5: SettingWithCopyWarning: \n",
+      "A value is trying to be set on a copy of a slice from a DataFrame.\n",
+      "Try using .loc[row_indexer,col_indexer] = value instead\n",
+      "\n",
+      "See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy\n",
+      "  df2[\"Movie_Id\"]=df2[\"Cust_Id\"].str.replace(\":\",\"\")\n"
+     ]
+    },
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>Cust_Id</th>\n",
+       "      <th>Rating</th>\n",
+       "      <th>Movie_Id</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>1488844</td>\n",
+       "      <td>3.0</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>822109</td>\n",
+       "      <td>5.0</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>885013</td>\n",
+       "      <td>4.0</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>30878</td>\n",
+       "      <td>4.0</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>823519</td>\n",
+       "      <td>3.0</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>100498272</th>\n",
+       "      <td>1790158</td>\n",
+       "      <td>4.0</td>\n",
+       "      <td>17770</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>100498273</th>\n",
+       "      <td>1608708</td>\n",
+       "      <td>3.0</td>\n",
+       "      <td>17770</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>100498274</th>\n",
+       "      <td>234275</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>17770</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>100498275</th>\n",
+       "      <td>255278</td>\n",
+       "      <td>4.0</td>\n",
+       "      <td>17770</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>100498276</th>\n",
+       "      <td>453585</td>\n",
+       "      <td>2.0</td>\n",
+       "      <td>17770</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>100480507 rows × 3 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "           Cust_Id  Rating Movie_Id\n",
+       "1          1488844     3.0        1\n",
+       "2           822109     5.0        1\n",
+       "3           885013     4.0        1\n",
+       "4            30878     4.0        1\n",
+       "5           823519     3.0        1\n",
+       "...            ...     ...      ...\n",
+       "100498272  1790158     4.0    17770\n",
+       "100498273  1608708     3.0    17770\n",
+       "100498274   234275     1.0    17770\n",
+       "100498275   255278     4.0    17770\n",
+       "100498276   453585     2.0    17770\n",
+       "\n",
+       "[100480507 rows x 3 columns]"
+      ]
+     },
+     "execution_count": 3,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Step 1: Create new column for Movie Id and fill it with NaN\n",
+    "df[\"Movie_Id\"]=np.nan\n",
+    "# Step 2: Make 2nd dataframe that stores ranges of where customer Id = : as that is start and stop of Movie ID\n",
+    "df2=df[df[\"Cust_Id\"].apply(lambda x:x[-1]==\":\")]\n",
+    "#Step 3: Copied Movie_Id for all columns except start and stop as blank not colon, Movie ID will be valid for start stop\n",
+    "df2[\"Movie_Id\"]=df2[\"Cust_Id\"].str.replace(\":\",\"\")\n",
+    "#Step 4: Replace  start stop columns with DF2 columns to put in MovieID \n",
+    "df.loc[df2.index,:]=df2\n",
+    "#Step 5: Forward Fill the NaNs between Movie Ids\n",
+    "df[\"Movie_Id\"]=df[\"Movie_Id\"].fillna(method=\"ffill\")\n",
+    "#Step 6: keep only the columns where rating is not null (will be columns with real customer ID)\n",
+    "df=df[df[\"Rating\"].notnull()]\n",
+    "df"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## DP: Save new df that has Movie ID in it and clean as pkl for easy future access can be loaded with commented out cell below the save"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "df.to_pickle(\"df_wMovie_Id.pkl\")\n",
+    "#df = pd.read_pickle(\"df_wMovie_Id.pkl\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "78a857d7-1ab1-4d93-b750-9c14b4ba2c9a",
+    "_uuid": "5bfa706c8f28f965b669dcfb285c9c32c1478bad"
+   },
+   "source": [
+    "## Data viewing"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "48f3f057-706a-4667-b58e-79d70893cbb1",
+    "_uuid": "b96e6aebfe14e3be18722b759654b732b8fa4d51"
+   },
+   "source": [
+    "Let's give a first look on how the data spread:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "_cell_guid": "0d82d7df-6c77-44f2-a0bc-70ae0324329f",
+    "_uuid": "7e8780821d463af5bdcee9ec2662cf27d89745e4",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "image/png": "iVBORw0KGgoAAAANSUhEUgAAA1MAAAJDCAYAAADuGU6zAAAAOXRFWHRTb2Z0d2FyZQBNYXRwbG90bGliIHZlcnNpb24zLjQuMywgaHR0cHM6Ly9tYXRwbG90bGliLm9yZy/MnkTPAAAACXBIWXMAAAsTAAALEwEAmpwYAABWn0lEQVR4nO3dd3gU5eL28Ts99N4FaWcTICS0BBAB6b0riBQRj4qIcBRFXkVAQA+gggUVFFBpSlFQQHqRXg2d0EPvgRRCyibz/oG7P5ZsQnjgAOr3c135I7Ozs8/Mzs7MPU8ZD8uyLAEAAAAA7ojngy4AAAAAAPwVEaYAAAAAwABhCgAAAAAMEKYAAAAAwABhCgAAAAAMEKYAAAAAwABh6h/s888/V0BAQKb+6tevf0fLPnbsmBYtWmRctoCAALVp08b4/ffTwIEDFRAQoP379xsv4+zZs3rzzTdVu3ZtVa5cWc8884w2bNiQqfdu3rzZ+T316NEjw3mXLl3qnPfnn382Lm9m3Ivt8r927do11a9fP939OyIiQi+//LJCQ0NVsWJFtWrVSjNnznQ779WrVzVs2DDVr19fISEhat++vX777TfjsvXt2zfD38Dy5cvVqVMnhYSEqHLlyurevbs2b97sdt6lS5eqY8eOCgkJ0eOPP67+/fvr6NGjxmW7ny5cuKCffvrpQRfjL+N2+83hw4fVu3dv1axZU1WrVtXzzz+vvXv3up33bo5L7qxevVoBAQH6/PPP3b4+e/ZstW7dWhUrVlS1atXUq1cvRUREuJ03PDxcPXr0UGhoqMLCwtS3b1+dPHky02X55JNP0j3fvfbaa2nmnzdvntq2batKlSqpTp06+u9//6tr1665zNOtW7fbnkvTW/d7LSUlRdOmTVN8fLxzmuOcv3z58vtShvvh1KlTCggIUO/evR90UfAP5v2gC4AHJywsTH369HGZNnfuXJ0+fVrdu3dXzpw5ndNz5MiR6eVGREToySefVOfOndWsWbN7Vt6/q0uXLumZZ57RxYsX1apVK+XIkUMLFy5Uz5499cUXX6hBgwaZXtbWrVt19epV5c6d2+3rS5YsuUelvr2GDRuqWLFiyp8//337zDs1ZswYnT59WsWKFUvzWkREhDp37qzExEQ1a9ZM+fLl04oVKzR48GCdOHFCb775pnPe+Ph49ezZU/v371fTpk1VpEgRLV26VK+99pqioqLUtWvXOyrXpEmTtGTJEgUGBrp9ffbs2Ro0aJBy5cql9u3bKyUlRfPnz1ePHj305Zdfql69es55v/nmG3300UfKli2bmjdvLh8fHy1ZskS///67vvnmG1WuXPmOynY/Xb58WU2bNlWNGjXUoUOHB12ch97t9psjR46oc+fOSk1NVatWreTh4aFff/1VnTt31rRp0xQcHOyc914elyQpLi5OgwcPTvf1sWPHavz48SpcuLA6deqkmJgY/fbbb9q0aZOmTZumoKAg57xbtmxRz549lStXLrVr106xsbFasGCBNm/erJ9++kmPPPLIbcsTEREhX19fvfjii2le+9e//uXy/4QJEzRmzBgFBASoa9euOnjwoL777jvt3LlTU6ZMka+vrySpXbt2CgsLS7M8y7L07bffKiEhQVWrVr1t2e6F/v37a9GiRWrdurVzmuOcX6pUqftShvshZ86c6tOnj0qXLv2gi4J/Mgu4SdeuXS2bzWadPHnSeBmbNm2ybDabNWLECONl2Gw2q3Xr1sbvv5/eeusty2azWfv27TN6/6BBgyybzWatXLnSOe3cuXNWrVq1rNq1a1uJiYkZvt+xvWvVqmXZbDbrp59+cjtfYmKiVblyZatSpUoZzvdPsXXrVisgIMCy2WxWvXr10rz+0ksvWTabzVq2bJlzWlxcnNW4cWMrMDDQOnHihHP6V199ZdlsNmvatGnOabGxsVaLFi2skJAQ69KlS5kqk91ut0aNGmXZbLZ0fwNJSUlWaGioVbVqVZffaUREhBUUFGTVr1/fOS0yMtIqV66cFRoaah09etQ5/fTp01b16tWtxo0b33b/epBOnjxp2Ww26+WXX37QRXmoZWa/sSzLeu6556zy5cu7HKsOHDhghYSEWO3bt3eZ926PS7dyLM9ms1mfffaZy2sXL160ypcvb9WrV8+Kjo52Tl+7dq1ls9msrl27OqelpKRYTZo0sapVq2adPXvWOX3Dhg1WQECA9eqrr2aqPPXq1bPatm172/lOnTpllS9f3urUqZOVlJTknP7JJ59YNpvNmjp16m2XMXnyZMtms1ljx47NVNnuBce5/ObtCeB/g2Z+wAN07do1zZs3TxUqVHCpTShUqJC6deum8+fPa82aNZlaVu3ateXj46Nly5a5fX3t2rXOZm3/dImJiXrnnXdUpUoVZc+e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4uLUuXNnnT17Vh07dlSZMmW0ZMkS9evXTz169FB4eLjatWunihUratWqVerbt69LSPr999/19NNPa9OmTapXr566du2q1NRUDR061G0/oLVr1+qbb75R27Zt9fjjjyskJETbtm1Tr169dPToUTVv3lxdu3aVl5eXxowZ43Jxd6cyu984jlnFixdP89qtx5p7eVwaM2aMLly4oBEjRqR746JixYqqUKGCli1bpu+//14xMTE6c+aMBgwYoLi4OJeBde5kPdJz4MABSTeOM88995xCQ0MVGhqqvn37phmY5cSJE8qfP7+yZcuW7ucdO3bM7efs2bNHixcvVq1atVSzZs0My3SzQ4cOadiwYWrYsKGaNm2qSpUqSbrRD+qDDz6Qt7e3OnbsqE6dOsnX11czZ87UCy+84Hz/zefdF154wXlOTs/evXvVvXt3eXp6qnPnzgoICNCiRYvUo0cPl9/S0qVL9fzzzysiIkJNmjRR8+bNtWTJEreDP/znP//R999/r5IlS+rZZ59V3bp1tWbNGnXp0iVTg9/85z//0ZgxY+Tn56dnnnlGJUuW1DvvvHPbG5R3co6KjY1V586d9c033+iRRx5R9+7dVblyZc2aNUtPPfWU2xunb775pmbNmqU6deqoY8eOOn/+vIYOHapZs2bddp3wN/ZgWxniYZNen6nu3btbNpvNmjVrlsv06dOnWzabzerevbtzmrs+U+fOnbMCAwOtLl26WHa73WUZL7zwgmWz2ay1a9c6p2W2z1S9evUsm81m9erVy2W5w4cPd2mbb7fbrcaNG1vly5e3fv/9d5dlfPjhh5bNZrP+3//7f0brezd9psaPH2/ZbDZrwYIFaV67fv26ZbPZrKeffjrDZdy8va9cuWKVL1/eev31113mWb16tWWz2azw8HDr22+/dekzdafbpnHjxlZoaKhL/4GUlBTr8ccfd+mvc+t2OXv2rBUUFGQ1a9bMioqKclnPTp06WYGBgdaBAwcsy7KsqVOnWjabzZozZ45Led577z3LZrNZq1atynCbpCcpKclq1aqV1bJlS2f5q1at6rbPlGXd+L4rVKjg7Oths9ms5557zrpy5Ypznvnz51s2m82aMGGC22XUrFnTql279h2XNaPfwPXr1613333XpVw2m80aPXq0lZKS4pxv7ty5ls1ms9599900y+jXr59ls9msHj16ZFgOR9+Q999/30pNTXVOd+y7kydPtiwr49/BrevSrl07q1KlSlZsbKxzWmxsrFWrVi2rRo0azs9x12cqNjbWCg0NtapUqWLt2bPHOT05Odnq37+/ZbPZrHHjxjmnO45pr7zyinO5ycnJ1hNPPGHZbDarU6dOLv1/HPMfPnzYsizLio+Pt2rUqGHVrFnT5biYkpJivfrqq5bNZrNWr17tsq42m81asWKFyzZwzHtzX7ukpCSrTZs2Vrly5Vy2xd1Ib79x7C/h4eFpXjt8+LBls9ms/v37W5Z1b45LlmVZf/zxhxUYGOj8bSxbtsxtnynLsqyoqCird+/eLvtzQECANWXKFJf5evbsadlsNuvChQtpluE4zo0ZMybDcjm2Rfny5a0+ffpYo0aNci63atWqLvtwhQoVrCZNmrhdzujRoy2bzWatX7/e7euO/XHDhg0ZludmjnParesdHh7u8h05JCcnWy1btrRsNptLv0h3faY+++yzNP1AHdv6m2++cU5LTU11bg/HOeHatWvWY489ZoWGhlrHjh1zznv69GkrLCzM5Xs9cOCAZbPZrAEDBriUddGiRZbNZrNGjhyZ4TZYvHixZbPZrN69e7ucZ6ZNm+Ysr+O36O4Ykdlz1NChQ9P0dbUsy1q+fLlls9msvn37ptl29erVsy5fvuycvn37dstms1lPPfVUhuuEvzdqpnBbZ8+e1aZNm1StWrU0zTSeeeYZVaxYUZs2bXLbJMDB19dXo0eP1jvvvJPm7mloaKgkpalWzywPDw8NGDDAZbn9+vVT1qxZnX1VwsPDFRkZqRYtWqhOnTou7+/bt68KFSqk+fPnKykp6Z6sb2Y5algcNQg3c0xLTEzM9PJy586tsLAwrV692uWO4uLFi1WkSBG3zb3uZNtIUqtWrRQdHa3169c759u2bZsuXLigli1bplu2X3/9VUlJSerbt6+ziZwk+fv7q2/fvkpNTdXcuXMlSampqZJu3DFNSUlxzvvaa69p3bp1euKJJzK9TW42YcIEHTp0SO+///5tm9zs2LFDX3/9tXx8fNS2bVt169ZNZcqU0YYNG/TZZ585ay7sdrsk99+hY/qdfIeZMW/ePM2fP19FixZVly5d9OSTTypPnjyaPn26fvnlF+d8TZs2VdGiRTVr1iyNGzdOFy9e1MWLF/XZZ585ay+tW5qp3WrhwoXKnj27+vfv71Kz0LVrV/373/9W2bJl77j8lmUpISFBhw4dck7Lnj275syZoxUrVqRbgyHdqJWKjo5W9+7dVaFCBed0b29vvf322/L393c7lHr37t2dy/X29nY2d+3WrZvLd+f4jTh+3ytXrlRUVJSef/55lz5qnp6e6t+/vySl+Tx/f/80/YMc+/TNfe18fHz0zTffaPPmzen23btXMnOscfzG78VxKSkpSe+8844CAwPVs2fP25Zv6tSp+v3331WmTBl1795dbdq0UZYsWfT5559r3bp1RuuRHi8vLxUrVkyTJ0/W559/rgEDBmjSpEn68MMPFRsbq7fffts5r91uz/C3LbnfFpcuXdLixYtVoUKFO6qVcmjcuLHL/4ULF9bIkSPVr18/l+ne3t7OEQJNz6H+/v7OWmDpxjm1du3akqTTp09LutFE9dKlS+rSpYtKlizpnLdo0aJ67rnnXJbn2NePHTvmUnPdsGFDLV++XG+88UaG5XGcB9566y2X43Tnzp0zNRJhZs5Rdrtd8+bN07/+9S916dLF5f0NGjRQlSpVtGzZsjQ17x06dHBpdlqlShXlzJnTuZ3wz8TQ6LgtRx+IatWquX29SpUq2r17tyIiItIdkjZPnjxq1aqVUlNTdfDgQR05ckQnT57UgQMHnM8tcRyA71SBAgXSHGBz5MihUqVKae/evbp+/bpzHRzB7Wa+vr6qWLGili9frqNHjzqbPd3N+maWv7+/JLlttua4IMiaNesdLbNx48basGGDNm7cqLp168put2vlypVq27at24vUO9k2gYGBatOmjT7//HP99ttvzlCTmSZ+e/bskXSjzf3NF9GSnH28HH0ZmjRpoi+++ELTp0/Xb7/9pscff1x16tRR3bp1VaBAgTvaHg6HDh3S+PHj1b17d5choN2Ji4vTSy+9pNTUVP3888/O/SspKUlvvPGGpk+frjJlyqhLly7OJnXpXcAlJSXd8XeYkW3btmnIkCEKCQnR5MmTnRfhr732mrp06aK3335bFSpUkM1mk7+/v7766iu9/PLL+vzzz519GvLmzavRo0erT58+zn3QnevXr+v48eMKDQ11rqdDtmzZXIaHvxOdOnXSkCFDnE0GHd9t1apV5emZ8T0+xz7ibn/NmzevSpUqpf379ys2NtblkQ6PPvqoy7yO7+TW37BjPR2/Scd+u3fvXrfPCPLy8krzLKTChQunuWn01FNPafny5Xrttdf06aefqnbt2qpTp45q1KiR7sX6vZSZY02WLFkyPe/t9ukvvvhCkZGRmj17try9M77U+OWXX/TFF1+oYcOGGjt2rHN7HD9+XB07dtSrr76qFStWKG/evHe0HukZMmSI2+mtW7fWrFmztHXrVh09elSlS5eWv79/us2KM/q8hQsXKjk5WR07dsywLO74+PioUKFCLtMKFy6sdu3ayW63a+/evTp27JhOnDih/fv33/U5tGjRomn2Qcdvx7GOjpsA7o6dVapUcfk/ICBAlStXVnh4uGrVqqWwsDDVqVNH9erVc9s881Z79uxR7ty50zQz9fT0VOXKldNtVumQmXPUsWPHFB8fr5SUFLe/68TERKWkpOjAgQMuw9m7C3PZs2c3au6Mvw/CFG7LcZBI71lTBQsWlKTb9nlaunSpPv74Y2d79qxZsyooKEiBgYHasGHDbe+Qp+fWk46D4/lGsbGxznVI7+6vYx2uX79+z9Y3M3LlyuUs460c0+70jnWjRo00bNgwLVu2THXr1tWmTZt09erVdPtL3cm2kW70VahcubJWrFihpKQkeXp6aunSpapQoUKGfZAc6/Pjjz+mO49jsIdChQppzpw5+uqrr7RixQrNnz9f8+fPl4+Pj9q3b69Bgwbd0QVoSkqK3n77bRUsWDDNnV13VqxYoatXr+qVV15xOXn6+vpq8ODBWrJkiebOnasuXbo4v8P0TqZxcXHKly9fpst6O467tq+//rrLd5Y/f37169dPr732mubNm6cBAwZIkgIDA/Xbb79p5cqVOnXqlAoXLqwGDRro7NmzzvelJyYmRtKd74O38/TTTytfvnyaMmWKtm/frgMHDuibb75RoUKFNHDgQDVv3jzd92Zmf92/f7+uX7/u8htO7wL7dvuRY791XIy5c+sgJe4Cat26dTVlyhRNmjRJGzZs0NSpUzV16lTlzp1bffr0cQ4S8L/iGCUvo2ONY3vd7XFp3759mjhxonr06OFSe5gexz49cOBAl+/j0Ucf1b///W999NFHWrRokbp06eKyHrfuu7c7dmdG+fLltXXrVp06dUqlS5dWzpw50x1g4tbtdrOVK1fKy8srTQ1TZqR3g+PHH3/UF1984ezLkzNnToWEhKhMmTLauXOn8TnU3W/AcePNsUzHCInujheOc8TN7500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",
+      "text/plain": [
+       "<Figure size 1080x720 with 1 Axes>"
+      ]
+     },
+     "metadata": {},
+     "output_type": "display_data"
+    }
+   ],
+   "source": [
+    "p = df.groupby('Rating')['Rating'].agg(['count'])\n",
+    "\n",
+    "# get movie count\n",
+    "movie_count = df.isnull().sum()[1]\n",
+    "\n",
+    "# get customer count\n",
+    "cust_count = df['Cust_Id'].nunique() - movie_count\n",
+    "\n",
+    "# get rating count\n",
+    "rating_count = df['Cust_Id'].count() - movie_count\n",
+    "\n",
+    "ax = p.plot(kind = 'barh', legend = False, figsize = (15,10))\n",
+    "plt.title('Total pool: {:,} Movies, {:,} customers, {:,} ratings given'.format(movie_count, cust_count, rating_count), fontsize=20)\n",
+    "plt.axis('off')\n",
+    "\n",
+    "for i in range(1,6):\n",
+    "    ax.text(p.iloc[i-1][0]/4, i-1, 'Rating {}: {:.0f}%'.format(i, p.iloc[i-1][0]*100 / p.sum()[0]), color = 'white', weight = 'bold')\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "a7394a2b-8c79-40b8-b967-765d3ae0ad10",
+    "_uuid": "dddad55f2699f3f4c02ae64a3e470c314e248643"
+   },
+   "source": [
+    "We can see that the rating tends to be relatively positive (>3). This may be due to the fact that unhappy customers tend to just leave instead of making efforts to rate. We can keep this in mind - low rating movies mean they are generally really bad"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "581427e0-87df-46b1-a0af-7eb06932b1a3",
+    "_uuid": "bf7bd867b322b3e40c4eb1204d345029b4eb31b6"
+   },
+   "source": [
+    "## Data cleaning"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "3165defc-df86-49a8-ba51-6abb9fa253b1",
+    "_uuid": "f232d44b5a8282bdcfbab54861bbd7990132e2c7"
+   },
+   "source": [
+    "### DP: Do not run below section all is commented out, cleaning optimized above\n",
+    "\n",
+    "Movie ID is really a mess import! Looping through dataframe to add Movie ID column WILL make the Kernel run out of memory as it is too inefficient. I achieve my task by first creating a numpy array with correct length then add the whole array as column into the main dataframe! Let's see how it is done below:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "_cell_guid": "d06e0993-d5ff-4f75-87a7-7659f5427ebf",
+    "_uuid": "498476341fad8d25d24090c07ea4b48299f9424a",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Movie numpy: [1.000e+00 1.000e+00 1.000e+00 ... 4.499e+03 4.499e+03 4.499e+03]\n",
+      "Length: 24053764\n"
+     ]
+    }
+   ],
+   "source": [
+    "\"\"\"\n",
+    "df_nan = pd.DataFrame(pd.isnull(df.Rating))\n",
+    "df_nan = df_nan[df_nan['Rating'] == True]\n",
+    "df_nan = df_nan.reset_index()\n",
+    "\n",
+    "movie_np = []\n",
+    "movie_id = 1\n",
+    "\n",
+    "for i,j in zip(df_nan['index'][1:],df_nan['index'][:-1]):\n",
+    "    # numpy approach\n",
+    "    temp = np.full((1,i-j-1), movie_id)\n",
+    "    movie_np = np.append(movie_np, temp)\n",
+    "    movie_id += 1\n",
+    "\n",
+    "# Account for last record and corresponding length\n",
+    "# numpy approach\n",
+    "last_record = np.full((1,len(df) - df_nan.iloc[-1, 0] - 1),movie_id)\n",
+    "movie_np = np.append(movie_np, last_record)\n",
+    "\n",
+    "print('Movie numpy: {}'.format(movie_np))\n",
+    "print('Length: {}'.format(len(movie_np)))\n",
+    "\"\"\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {
+    "_cell_guid": "e7da935d-a055-4ce6-9509-9c0439fda1de",
+    "_uuid": "73c7888f9cf7e1d0f705c6a14019d9371eaa9bf3",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "\"\\ndf = df[pd.notnull(df['Rating'])]\\n\\ndf['Movie_Id'] = movie_np.astype(int)\\ndf['Cust_Id'] = df['Cust_Id'].astype(int)\\nprint('-Dataset examples-')\\nprint(df.iloc[::5000000, :])\\n\""
+      ]
+     },
+     "execution_count": 11,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# remove those Movie ID rows\n",
+    "\"\"\"\n",
+    "df = df[pd.notnull(df['Rating'])]\n",
+    "\n",
+    "df['Movie_Id'] = movie_np.astype(int)\n",
+    "df['Cust_Id'] = df['Cust_Id'].astype(int)\n",
+    "print('-Dataset examples-')\n",
+    "print(df.iloc[::5000000, :])\n",
+    "\"\"\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "fd1a2d66-78b0-4191-8ca2-0caef60e91fa",
+    "_uuid": "7abf85f047576e1c8fe7742e28bd2a55d33c366c"
+   },
+   "source": [
+    "## Data slicing - did not use"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "6532819a-7b08-45c4-8b25-952568d7d465",
+    "_uuid": "b0107145609698c552ad9e74fd192cbbe93c4bb3"
+   },
+   "source": [
+    "The data set now is super huge. I have tried many different ways but can't get the Kernel running as intended without memory error. Therefore I tried to reduce the data volumn by improving the data quality below:\n",
+    "\n",
+    "* Remove movie with too less reviews (they are relatively not popular)\n",
+    "* Remove customer who give too less reviews (they are relatively less active)\n",
+    "\n",
+    "Having above benchmark will have significant improvement on efficiency, since those unpopular movies and non-active customers still occupy same volumn as those popular movies and active customers in the view of matrix (NaN still occupy space). This should help improve the statistical signifiance too.\n",
+    "\n",
+    "Let's see how it is implemented:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_cell_guid": "1db45c46-ee82-4db5-be2c-919258c09d47",
+    "_uuid": "b8987bf7e2cfcdc2a69fb767c4033d05240cc5a3",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "\"\"\"\n",
+    "f = ['count','mean']\n",
+    "\n",
+    "df_movie_summary = df.groupby('Movie_Id')['Rating'].agg(f)\n",
+    "df_movie_summary.index = df_movie_summary.index.map(int)\n",
+    "movie_benchmark = round(df_movie_summary['count'].quantile(0.7),0)\n",
+    "drop_movie_list = df_movie_summary[df_movie_summary['count'] < movie_benchmark].index\n",
+    "\n",
+    "print('Movie minimum times of review: {}'.format(movie_benchmark))\n",
+    "\n",
+    "df_cust_summary = df.groupby('Cust_Id')['Rating'].agg(f)\n",
+    "df_cust_summary.index = df_cust_summary.index.map(int)\n",
+    "cust_benchmark = round(df_cust_summary['count'].quantile(0.7),0)\n",
+    "drop_cust_list = df_cust_summary[df_cust_summary['count'] < cust_benchmark].index\n",
+    "\n",
+    "print('Customer minimum times of review: {}'.format(cust_benchmark))\n",
+    "\n",
+    "\"\"\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "bebeaf19-b3a0-45d9-8a91-deaff2881d71",
+    "_uuid": "bc6022b8d87bfb7679984bcbd4b928a54ef19be8"
+   },
+   "source": [
+    "Now let's trim down our data, whats the difference in data size?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_cell_guid": "61f85e6a-3438-456b-b169-f42c0270a752",
+    "_uuid": "f09c53f0e7b7fea039437c43e5163a5a59250b70",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "\"\"\"\n",
+    "\n",
+    "print('Original Shape: {}'.format(df.shape))\n",
+    "df = df[~df['Movie_Id'].isin(drop_movie_list)]\n",
+    "df = df[~df['Cust_Id'].isin(drop_cust_list)]\n",
+    "print('After Trim Shape: {}'.format(df.shape))\n",
+    "print('-Data Examples-')\n",
+    "print(df.iloc[::5000000, :])\n",
+    "\n",
+    "\"\"\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "7f10cc54-4021-4748-9f2f-933d541acee4",
+    "_uuid": "ea0da55846a3795aead5d0365d5fcf91b03636ab"
+   },
+   "source": [
+    "Let's pivot the data set and put it into a giant matrix - we need it for our recommendation system:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_cell_guid": "9e5a21fd-ccff-4fd3-aebe-cd82e5734ba9",
+    "_uuid": "528c8ecb8bbd94130e38e68362184087dcc39f83",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [
+    {
+     "ename": "ValueError",
+     "evalue": "Unstacked DataFrame is too big, causing int32 overflow",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+      "\u001b[0;31mValueError\u001b[0m                                Traceback (most recent call last)",
+      "\u001b[0;32m/var/folders/t3/yf_l77bx74s62ggfvz2xtht40000gp/T/ipykernel_63050/468136651.py\u001b[0m in \u001b[0;36m<module>\u001b[0;34m\u001b[0m\n\u001b[0;32m----> 1\u001b[0;31m \u001b[0mdf_p\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mpd\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mpivot_table\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdf\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mvalues\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m'Rating'\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mindex\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m'Cust_Id'\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mcolumns\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m'Movie_Id'\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m      2\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      3\u001b[0m \u001b[0mprint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdf_p\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mshape\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      4\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      5\u001b[0m \u001b[0;31m# Below is another way I used to sparse the dataframe...doesn't seem to work better\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/pandas/core/reshape/pivot.py\u001b[0m in \u001b[0;36mpivot_table\u001b[0;34m(data, values, index, columns, aggfunc, fill_value, margins, dropna, margins_name, observed, sort)\u001b[0m\n\u001b[1;32m     93\u001b[0m         \u001b[0;32mreturn\u001b[0m \u001b[0mtable\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m__finalize__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdata\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mmethod\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"pivot_table\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     94\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 95\u001b[0;31m     table = __internal_pivot_table(\n\u001b[0m\u001b[1;32m     96\u001b[0m         \u001b[0mdata\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     97\u001b[0m         \u001b[0mvalues\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/pandas/core/reshape/pivot.py\u001b[0m in \u001b[0;36m__internal_pivot_table\u001b[0;34m(data, values, index, columns, aggfunc, fill_value, margins, dropna, margins_name, observed, sort)\u001b[0m\n\u001b[1;32m    203\u001b[0m             \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    204\u001b[0m                 \u001b[0mto_unstack\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mappend\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mname\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 205\u001b[0;31m         \u001b[0mtable\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0magged\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0munstack\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mto_unstack\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    206\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    207\u001b[0m     \u001b[0;32mif\u001b[0m \u001b[0;32mnot\u001b[0m \u001b[0mdropna\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/pandas/core/frame.py\u001b[0m in \u001b[0;36munstack\u001b[0;34m(self, level, fill_value)\u001b[0m\n\u001b[1;32m   8322\u001b[0m         \u001b[0;32mfrom\u001b[0m \u001b[0mpandas\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcore\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mreshape\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mreshape\u001b[0m \u001b[0;32mimport\u001b[0m \u001b[0munstack\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   8323\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 8324\u001b[0;31m         \u001b[0mresult\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0munstack\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mlevel\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mfill_value\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   8325\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   8326\u001b[0m         \u001b[0;32mreturn\u001b[0m \u001b[0mresult\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m__finalize__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mmethod\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"unstack\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/pandas/core/reshape/reshape.py\u001b[0m in \u001b[0;36munstack\u001b[0;34m(obj, level, fill_value)\u001b[0m\n\u001b[1;32m    445\u001b[0m     \u001b[0;32mif\u001b[0m \u001b[0misinstance\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mobj\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mDataFrame\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    446\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0misinstance\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mindex\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mMultiIndex\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 447\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0m_unstack_frame\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mobj\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mlevel\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mfill_value\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mfill_value\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    448\u001b[0m         \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    449\u001b[0m             \u001b[0;32mreturn\u001b[0m \u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mT\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mstack\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdropna\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;32mFalse\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/pandas/core/reshape/reshape.py\u001b[0m in \u001b[0;36m_unstack_frame\u001b[0;34m(obj, level, fill_value)\u001b[0m\n\u001b[1;32m    472\u001b[0m         \u001b[0;32mreturn\u001b[0m \u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_constructor\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mmgr\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    473\u001b[0m     \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 474\u001b[0;31m         \u001b[0munstacker\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0m_Unstacker\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mindex\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mlevel\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mlevel\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mconstructor\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_constructor\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    475\u001b[0m         return unstacker.get_result(\n\u001b[1;32m    476\u001b[0m             \u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_values\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mvalue_columns\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mobj\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcolumns\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mfill_value\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mfill_value\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/pandas/core/reshape/reshape.py\u001b[0m in \u001b[0;36m__init__\u001b[0;34m(self, index, level, constructor)\u001b[0m\n\u001b[1;32m    129\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    130\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mnum_rows\u001b[0m \u001b[0;34m>\u001b[0m \u001b[0;36m0\u001b[0m \u001b[0;32mand\u001b[0m \u001b[0mnum_columns\u001b[0m \u001b[0;34m>\u001b[0m \u001b[0;36m0\u001b[0m \u001b[0;32mand\u001b[0m \u001b[0mnum_cells\u001b[0m \u001b[0;34m<=\u001b[0m \u001b[0;36m0\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 131\u001b[0;31m             \u001b[0;32mraise\u001b[0m \u001b[0mValueError\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"Unstacked DataFrame is too big, causing int32 overflow\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    132\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    133\u001b[0m         \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_make_selectors\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;31mValueError\u001b[0m: Unstacked DataFrame is too big, causing int32 overflow"
+     ]
+    }
+   ],
+   "source": [
+    "\"\"\"\n",
+    "df_p = pd.pivot_table(df,values='Rating',index='Cust_Id',columns='Movie_Id')\n",
+    "\n",
+    "print(df_p.shape)\n",
+    "\n",
+    "# Below is another way I used to sparse the dataframe...doesn't seem to work better\n",
+    "\n",
+    "#Cust_Id_u = list(sorted(df['Cust_Id'].unique()))\n",
+    "#Movie_Id_u = list(sorted(df['Movie_Id'].unique()))\n",
+    "#data = df['Rating'].tolist()\n",
+    "#row = df['Cust_Id'].astype('category', categories=Cust_Id_u).cat.codes\n",
+    "#col = df['Movie_Id'].astype('category', categories=Movie_Id_u).cat.codes\n",
+    "#sparse_matrix = csr_matrix((data, (row, col)), shape=(len(Cust_Id_u), len(Movie_Id_u)))\n",
+    "#df_p = pd.DataFrame(sparse_matrix.todense(), index=Cust_Id_u, columns=Movie_Id_u)\n",
+    "#df_p = df_p.replace(0, np.NaN)\n",
+    "\n",
+    "\"\"\"\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "62ba3943-5369-4df9-b33e-3a5a8b47e9f9",
+    "_uuid": "598d5c85304513168b871257f5c3bd810a7a8da4"
+   },
+   "source": [
+    "## Data mapping"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "7768ffa2-e387-4b15-8ef1-c808229f4dc0",
+    "_uuid": "ab718ba4d0e6b3b95d03c25b577884e88af77b93"
+   },
+   "source": [
+    "Now we load the movie mapping file:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {
+    "_cell_guid": "cec6d42b-adff-49c0-939c-2f92adae15a4",
+    "_uuid": "d971e5a1ccd038f9a08e126daeb8995d30f9e014",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "            Year                          Name\n",
+      "Movie_Id                                      \n",
+      "1         2003.0               Dinosaur Planet\n",
+      "2         2004.0    Isle of Man TT 2004 Review\n",
+      "3         1997.0                     Character\n",
+      "4         1994.0  Paula Abdul's Get Up & Dance\n",
+      "5         2004.0      The Rise and Fall of ECW\n",
+      "6         1997.0                          Sick\n",
+      "7         1992.0                         8 Man\n",
+      "8         2004.0    What the #$*! Do We Know!?\n",
+      "9         1991.0      Class of Nuke 'Em High 2\n",
+      "10        2001.0                       Fighter\n"
+     ]
+    }
+   ],
+   "source": [
+    "df_title = pd.read_csv('movie_titles.csv', encoding = \"ISO-8859-1\", header = None, names = ['Movie_Id', 'Year', 'Name'])\n",
+    "df_title.set_index('Movie_Id', inplace = True)\n",
+    "print (df_title.head(10))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "c1b464a7-3c69-4acb-adcb-00d8b3ec9c93",
+    "_uuid": "c6becd707a3c14a5c76887789e21e9fbf150e9f8"
+   },
+   "source": [
+    "# Recommendation models"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "a73d197f-1700-40ae-b20c-cab9b8e0c008",
+    "_uuid": "bd73e13a984d412908272360c701c15b58f412df"
+   },
+   "source": [
+    "Well all data required is loaded and cleaned! Next let's get into the recommendation system."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "fa6ad634-5c47-41e1-adeb-47fe2bd8f1b9",
+    "_uuid": "523277beb220f90b2f7fb58dab680e22db2aa325"
+   },
+   "source": [
+    "## Recommend with Collaborative Filtering"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "1ca487dc-253b-4a5e-ab00-516ee846306a",
+    "_uuid": "5fb7d8cd461f7ab0b279acdfc135bfb3c302c3e8"
+   },
+   "source": [
+    "Evalute performance of [collaborative filtering](https://en.wikipedia.org/wiki/Collaborative_filtering), with just first 100K rows for faster process:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {
+    "_cell_guid": "fa414c7c-f908-40fa-bc99-9b221748c923",
+    "_uuid": "a59aaac88ca121b93fcd8807e462dc7f0b609254",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    },
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "reader = Reader()\n",
+    "\n",
+    "# get just top 100K rows for faster run time\n",
+    "data = Dataset.load_from_df(df[['Cust_Id', 'Movie_Id', 'Rating']][:], reader)\n",
+    "#data.split(n_folds=3)\n",
+    "\n",
+    "svd = SVD()\n",
+    "cross_validate(svd, data, measures=['RMSE', 'MAE'])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "c02b147f-b163-4a67-897e-881fbe2d69cd",
+    "_uuid": "9c519e55ef4ae222556048f22bb55e4c8885d864"
+   },
+   "source": [
+    "Below is what user 783514 liked in the past:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_cell_guid": "dca8773e-5a63-4ac8-9691-77d6a50e1485",
+    "_uuid": "7b832da6358dc5ad2b3c4c2a60e73cacdfe0fe75",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "df_785314 = df[(df['Cust_Id'] == 785314) & (df['Rating'] == 5)]\n",
+    "df_785314 = df_785314.set_index('Movie_Id')\n",
+    "df_785314 = df_785314.join(df_title)['Name']\n",
+    "print(df_785314)\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "fac49661-d5d9-4d1d-a3f5-110220f18b89",
+    "_uuid": "c18f9856722f273498b9192e2b722077b9d86962"
+   },
+   "source": [
+    "Let's predict which movies user 785314 would love to watch:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_cell_guid": "7da1d4f5-ef96-4f33-96ae-a66028f8926d",
+    "_uuid": "6f47935958ad57c568fa58253a83452abe83fbed",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "user_785314 = df_title.copy()\n",
+    "user_785314 = user_785314.reset_index()\n",
+    "user_785314 = user_785314[~user_785314['Movie_Id'].isin(drop_movie_list)]\n",
+    "\n",
+    "# getting full dataset\n",
+    "data = Dataset.load_from_df(df[['Cust_Id', 'Movie_Id', 'Rating']], reader)\n",
+    "\n",
+    "trainset = data.build_full_trainset()\n",
+    "svd.fit(trainset)\n",
+    "\n",
+    "user_785314['Estimate_Score'] = user_785314['Movie_Id'].apply(lambda x: svd.predict(785314, x).est)\n",
+    "\n",
+    "user_785314 = user_785314.drop('Movie_Id', axis = 1)\n",
+    "\n",
+    "user_785314 = user_785314.sort_values('Estimate_Score', ascending=False)\n",
+    "print(user_785314.head(10))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "25d88f52-36a2-4c62-bdc5-fee174b1aab7",
+    "_uuid": "f24caa335865e13f5e0feb47bfb0b47996c69570"
+   },
+   "source": [
+    "## Recommend with Pearsons' R correlations"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "d1220239-a049-4543-9ab6-89e1d00d6cdd",
+    "_uuid": "4d4082f49c67f7406af44d9125ddab4c16ca967e"
+   },
+   "source": [
+    "The way it works is we use Pearsons' R correlation to measure the linear correlation between review scores of all pairs of movies, then we provide the top 10 movies with highest correlations:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_cell_guid": "200cf4e8-59d6-459d-a0e5-5c9452bc8ad0",
+    "_uuid": "531e21998a34956e35f3e0a839e18d528faa6709",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "def recommend(movie_title, min_count):\n",
+    "    print(\"For movie ({})\".format(movie_title))\n",
+    "    print(\"- Top 10 movies recommended based on Pearsons'R correlation - \")\n",
+    "    i = int(df_title.index[df_title['Name'] == movie_title][0])\n",
+    "    target = df_p[i]\n",
+    "    similar_to_target = df_p.corrwith(target)\n",
+    "    corr_target = pd.DataFrame(similar_to_target, columns = ['PearsonR'])\n",
+    "    corr_target.dropna(inplace = True)\n",
+    "    corr_target = corr_target.sort_values('PearsonR', ascending = False)\n",
+    "    corr_target.index = corr_target.index.map(int)\n",
+    "    corr_target = corr_target.join(df_title).join(df_movie_summary)[['PearsonR', 'Name', 'count', 'mean']]\n",
+    "    print(corr_target[corr_target['count']>min_count][:10].to_string(index=False))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "c06b5afa-cf47-4853-a712-ee0afe60b994",
+    "_uuid": "e7b9374a3c6bcd9d890f1a1462d6d4f2cb55dad5"
+   },
+   "source": [
+    "A recommendation for you if you like 'What the #$*! Do We Know!?'"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_cell_guid": "9691bc55-4bde-4580-ae43-f9698e46ab81",
+    "_uuid": "903cb1f6529d9d93deb557b5ac7eeba4b42d8a53",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "recommend(\"What the #$*! Do We Know!?\", 0)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "c4f1cfbe-0c57-46b5-97d4-1f9466862802",
+    "_uuid": "3646da79d856c2895001832bedb3bf5236a84166"
+   },
+   "source": [
+    "X2: X-Men United:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "_cell_guid": "9fc24be5-1037-4208-b1ca-07e2e9f8c4a7",
+    "_uuid": "8586765d4b658bea95997f4418b7ae14c2c6be3d",
+    "collapsed": true,
+    "jupyter": {
+     "outputs_hidden": true
+    }
+   },
+   "outputs": [],
+   "source": [
+    "recommend(\"X2: X-Men United\", 0)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "_cell_guid": "e9ba141d-cec5-4104-935e-f0492ce099df",
+    "_uuid": "08abd9eabd6c0999751f5cab879e9976517e61d8"
+   },
+   "source": [
+    "\n"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.11"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
